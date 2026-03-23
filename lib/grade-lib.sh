@@ -20,8 +20,8 @@ CYAN='\033[0;36m'; BOLD='\033[1m'; DIM='\033[2m'; RESET='\033[0m'
 # ── Score tracking ─────────────────────────────────────────────────────────────
 _KG_TOTAL=0; _KG_PASSED=0; _KG_FAILED=0; _KG_FAIL_REASONS=()
 
-_pass()    { ((_KG_TOTAL++)); ((_KG_PASSED++)); echo -e "  ${GREEN}✔ PASS${RESET}  $1"; }
-_fail()    { ((_KG_TOTAL++)); ((_KG_FAILED++)); echo -e "  ${RED}✘ FAIL${RESET}  $1"; _KG_FAIL_REASONS+=("$1"); }
+_pass()    { ((_KG_TOTAL+=1)); ((_KG_PASSED+=1)); echo -e "  ${GREEN}✔ PASS${RESET}  $1"; }
+_fail()    { ((_KG_TOTAL+=1)); ((_KG_FAILED+=1)); echo -e "  ${RED}✘ FAIL${RESET}  $1"; _KG_FAIL_REASONS+=("$1"); }
 _info()    { echo -e "  ${DIM}↳ $1${RESET}"; }
 _warn()    { echo -e "  ${YELLOW}⚠ WARN${RESET}  $1"; }
 _section() { echo -e "\n${BOLD}${CYAN}▶ $1${RESET}"; }
@@ -344,7 +344,8 @@ check_file_exact() {
 
 # ── Generic jsonpath ──────────────────────────────────────────────────────────
 check_jsonpath() {
-  local kind=$1 name=$2 ns=${3:-default} jp=$4 expected=$5 desc=${6:-$jp}
+  local kind=$1 name=$2 ns=${3:-default} jp=$4 expected=$5
+  local desc=${6:-$jp}
   _info "kubectl get $kind $name -n $ns -o jsonpath='$jp'"
   _keq "$(_kget "$kind" "$name" "$ns" "$jp")" "$expected" "$desc"
 }
