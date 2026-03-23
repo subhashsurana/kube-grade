@@ -39,6 +39,7 @@ CRONJOB_NAME="my-cj"
 INGRESS_NAME="my-ingress"
 
 IMAGE="nginx:1.21"
+# shellcheck disable=SC2034
 REPLICAS=1
 LABEL_KEY="app"
 LABEL_VAL="myapp"
