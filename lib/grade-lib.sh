@@ -4,7 +4,7 @@
 # https://github.com/kube-grade/kube-grade
 #
 # Source in any grading script:
-#   source <(curl -sL https://raw.githubusercontent.com/kube-grade/kube-grade/main/lib/grade-lib.sh)
+#   source <(curl -sL https://raw.githubusercontent.com/subhashsurana/kube-grade/main/lib/grade-lib.sh)
 #   source ~/kube-grade/lib/grade-lib.sh
 # =============================================================================
 

@@ -19,7 +19,7 @@ Killercoda's check button is a black box. You apply your YAML, get 0 points, and
 One command, works in any Killercoda or killer.sh terminal:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/kube-grade/kube-grade/main/install.sh | bash && source ~/.bashrc
+curl -sL https://raw.githubusercontent.com/subhashsurana/kube-grade/main/install.sh | bash && source ~/.bashrc
 ```
 
 ---

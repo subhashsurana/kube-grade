@@ -6,7 +6,7 @@ if [[ -f "$LIB" ]]; then
   source "$LIB"
 else
   # shellcheck source=/dev/null
-  source <(curl -sL https://raw.githubusercontent.com/kube-grade/kube-grade/main/lib/grade-lib.sh)
+  source <(curl -sL https://raw.githubusercontent.com/subhashsurana/kube-grade/main/lib/grade-lib.sh)
 fi
 _warn "This scenario grader is not yet implemented. Contributions welcome!"
 grade_summary

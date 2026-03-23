@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # =============================================================================
 # kube-grade installer
-# curl -sL https://raw.githubusercontent.com/kube-grade/kube-grade/main/install.sh | bash
+# curl -sL https://raw.githubusercontent.com/subhashsurana/kube-grade/main/install.sh | bash
 # =============================================================================
 set -euo pipefail
 
-REPO_RAW="https://raw.githubusercontent.com/kube-grade/kube-grade/main"
+REPO_RAW="https://raw.githubusercontent.com/subhashsurana/kube-grade/main"
 INSTALL_DIR="$HOME/kube-grade"
 BOLD='\033[1m'; CYAN='\033[0;36m'; GREEN='\033[0;32m'; DIM='\033[2m'; RESET='\033[0m'
 
