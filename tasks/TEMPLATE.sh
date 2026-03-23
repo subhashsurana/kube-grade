@@ -39,11 +39,16 @@ CRONJOB_NAME="my-cj"
 INGRESS_NAME="my-ingress"
 
 IMAGE="nginx:1.21"
-# shellcheck disable=SC2034
 REPLICAS=1
 LABEL_KEY="app"
 LABEL_VAL="myapp"
 OUTPUT_FILE="/opt/course/TASK_NUM/answer.txt"
+
+# Keep placeholder config variables "used" for shellcheck while preserving
+# the template structure for manual editing.
+: "${DEPLOY_NAME}${POD_NAME}${SVC_NAME}${CM_NAME}${SECRET_NAME}${PVC_NAME}"
+: "${SA_NAME}${ROLE_NAME}${RB_NAME}${CRONJOB_NAME}${INGRESS_NAME}"
+: "${IMAGE}${REPLICAS}${LABEL_KEY}${LABEL_VAL}${OUTPUT_FILE}"
 
 # =============================================================================
 # GRADING

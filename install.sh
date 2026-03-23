@@ -11,9 +11,15 @@ BOLD='\033[1m'; CYAN='\033[0;36m'; GREEN='\033[0;32m'; DIM='\033[2m'; RESET='\03
 
 _dl() {
   local src="$REPO_RAW/$1" dst="$INSTALL_DIR/$1"
+  local tmp
   mkdir -p "$(dirname "$dst")"
-  if command -v curl &>/dev/null; then curl -sL "$src" -o "$dst"
-  else wget -qO "$dst" "$src"; fi
+  tmp=$(mktemp)
+  if command -v curl &>/dev/null; then
+    curl -fsSL "$src" -o "$tmp"
+  else
+    wget -qO "$tmp" "$src"
+  fi
+  mv "$tmp" "$dst"
   echo -e "${DIM}  ↳ $1${RESET}"
 }
 
