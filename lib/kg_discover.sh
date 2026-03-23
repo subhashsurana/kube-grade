@@ -18,7 +18,8 @@ if [[ -f "$LIB" ]]; then
   # shellcheck source=/dev/null
   source "$LIB"
 else
-  source <(curl -sL https://raw.githubusercontent.com/subhashsurana/kube-grade/main/lib/grade-lib.sh)
+  # shellcheck source=/dev/null
+  source <(curl -sL https://raw.githubusercontent.com/kube-grade/kube-grade/main/lib/grade-lib.sh)
 fi
 
 # ── Colours (lib may not be sourced yet in edge cases) ────────────────────────
@@ -46,7 +47,7 @@ echo -e "  Context   : ${BOLD}${CURRENT_CONTEXT}${RESET}"
 
 # Resolve namespace list
 if [[ -n "$NAMESPACES" ]]; then
-  NS_LIST=($NAMESPACES)
+  read -r -a NS_LIST <<< "$NAMESPACES"
 else
   # All namespaces minus skip list
   ALL_NS=$(kubectl get namespaces -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
@@ -195,7 +196,6 @@ echo -e "\n${BOLD}  Discovered resources:${RESET}\n"
 # Print indexed table for selection
 IDX=0
 declare -a ITEM_KEYS
-declare -a ITEM_DISPLAY
 
 # Group by namespace then kind for readable output
 for ns in "${NS_LIST[@]}"; do
@@ -217,7 +217,6 @@ for ns in "${NS_LIST[@]}"; do
       printf "      ${GREEN}[%2d]${RESET}  %-36s ${DIM}%s${RESET}\n" \
         "$IDX" "$name" "$extra"
       ITEM_KEYS[$IDX]="$key"
-      ITEM_DISPLAY[$IDX]="${kind}/${name} (ns:${ns})"
       ((IDX++))
     done
   done
