@@ -79,3 +79,6 @@ jobs:
           done
           [[ $fail -eq 0 ]] || exit 1
           echo "All MANIFEST entries have matching files"
+
+      - name: kg-discover smoke test
+        run: bash tests/kg-discover-smoke.sh

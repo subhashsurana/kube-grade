@@ -203,7 +203,9 @@ kg-discover() {
 BLOCK
 
 # Download kg-discover
+_dl "lib/kg_discover.sh"
 _dl "lib/kg-discover.sh"
+chmod +x "$INSTALL_DIR/lib/kg_discover.sh"
 chmod +x "$INSTALL_DIR/lib/kg-discover.sh"
 
 # shellcheck disable=SC1090

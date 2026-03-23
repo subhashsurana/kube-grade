@@ -1,0 +1,354 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+canonical_kind() {
+  case "${1:-}" in
+    pod|pods) echo "pod" ;;
+    deployment|deployments) echo "deployment" ;;
+    service|services|svc) echo "service" ;;
+    configmap|configmaps|cm) echo "configmap" ;;
+    secret|secrets) echo "secret" ;;
+    persistentvolumeclaim|persistentvolumeclaims|pvc) echo "pvc" ;;
+    serviceaccount|serviceaccounts|sa) echo "serviceaccount" ;;
+    role|roles) echo "role" ;;
+    rolebinding|rolebindings|rb) echo "rolebinding" ;;
+    cronjob|cronjobs|cj) echo "cronjob" ;;
+    job|jobs) echo "job" ;;
+    ingress|ingresses|ing) echo "ingress" ;;
+    networkpolicy|networkpolicies|netpol) echo "networkpolicy" ;;
+    statefulset|statefulsets|sts) echo "statefulset" ;;
+    daemonset|daemonsets|ds) echo "daemonset" ;;
+    replicaset|replicasets|rs) echo "replicaset" ;;
+    namespace|namespaces) echo "namespace" ;;
+    endpoints) echo "endpoints" ;;
+    *)
+      echo "${1:-}"
+      ;;
+  esac
+}
+
+resource_exists() {
+  case "$1:$2:$3" in
+    namespace:default:|namespace:team-a:|namespace:kube-system:)
+      return 0
+      ;;
+    pod:app-pod:team-a|pod:nightly-123-pod:team-a|pod:batch-once-pod:team-a)
+      return 0
+      ;;
+    deployment:web-deploy:team-a|service:web-svc:team-a|configmap:app-config:team-a)
+      return 0
+      ;;
+    secret:app-secret:team-a|pvc:data-pvc:team-a|serviceaccount:build-bot:team-a)
+      return 0
+      ;;
+    role:workload-reader:team-a|rolebinding:workload-reader-bind:team-a)
+      return 0
+      ;;
+    cronjob:nightly:team-a|job:batch-once:team-a|job:nightly-123:team-a)
+      return 0
+      ;;
+    ingress:web-ing:team-a|networkpolicy:allow-web:team-a)
+      return 0
+      ;;
+    statefulset:db-sts:team-a|daemonset:log-agent:team-a|replicaset:web-rs:team-a)
+      return 0
+      ;;
+    endpoints:web-svc:team-a)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+list_names() {
+  case "$1:$2" in
+    pod:team-a) printf '%s\n' "app-pod" ;;
+    deployment:team-a) printf '%s\n' "web-deploy" ;;
+    service:team-a) printf '%s\n' "web-svc" ;;
+    configmap:team-a) printf '%s\n' "app-config" ;;
+    secret:team-a) printf '%s\n' "app-secret" ;;
+    pvc:team-a) printf '%s\n' "data-pvc" ;;
+    serviceaccount:team-a) printf '%s\n' "build-bot" ;;
+    role:team-a) printf '%s\n' "workload-reader" ;;
+    rolebinding:team-a) printf '%s\n' "workload-reader-bind" ;;
+    cronjob:team-a) printf '%s\n' "nightly" ;;
+    job:team-a) printf '%s\n' "batch-once" ;;
+    ingress:team-a) printf '%s\n' "web-ing" ;;
+    networkpolicy:team-a) printf '%s\n' "allow-web" ;;
+    statefulset:team-a) printf '%s\n' "db-sts" ;;
+    daemonset:team-a) printf '%s\n' "log-agent" ;;
+    replicaset:team-a) printf '%s\n' "web-rs" ;;
+  esac
+}
+
+json_value() {
+  local kind=$1
+  local name=$2
+  local ns=$3
+  local selector=$4
+  local jsonpath=$5
+  local lookup="${kind}:${name}:${ns}:${jsonpath}"
+
+  if [[ "$kind" == "namespace" && -z "$name" && "$jsonpath" == "{.items[*].metadata.name}" ]]; then
+    printf '%s' "default team-a kube-system"
+    return 0
+  fi
+
+  if [[ -z "$name" && "$jsonpath" == '{range .items[*]}{.metadata.name}{"\n"}{end}' ]]; then
+    list_names "$kind" "$ns"
+    return 0
+  fi
+
+  if [[ "$kind" == "job" && -z "$name" && "$jsonpath" == "{.items[0].metadata.name}" ]]; then
+    printf '%s' "nightly-123"
+    return 0
+  fi
+
+  if [[ "$kind" == "pod" && -z "$name" && "$selector" == "job-name=nightly-123" && "$jsonpath" == "{.items[0].metadata.name}" ]]; then
+    printf '%s' "nightly-123-pod"
+    return 0
+  fi
+
+  if [[ "$kind" == "pod" && -z "$name" && "$selector" == "job-name=batch-once" && "$jsonpath" == "{.items[0].metadata.name}" ]]; then
+    printf '%s' "batch-once-pod"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'pod:app-pod:team-a:{.status.phase}' ]]; then
+    printf '%s' "Running"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'pod:app-pod:team-a:{.status.containerStatuses[*].ready}' ]]; then
+    printf '%s' "true"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'pod:app-pod:team-a:{.spec.containers[0].image}' ]]; then
+    printf '%s' "nginx:1.27"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'pod:app-pod:team-a:{.metadata.labels.app}' ]]; then
+    printf '%s' "web"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'pod:nightly-123-pod:team-a:{.status.phase}' || "$lookup" == 'pod:batch-once-pod:team-a:{.status.phase}' ]]; then
+    printf '%s' "Succeeded"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'deployment:web-deploy:team-a:{.spec.replicas}' ]]; then
+    printf '%s' "3"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'deployment:web-deploy:team-a:{.spec.template.spec.containers[0].image}' ]]; then
+    printf '%s' "nginx:1.27"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'deployment:web-deploy:team-a:{.metadata.labels.app}' || "$lookup" == 'deployment:web-deploy:team-a:{.spec.selector.matchLabels.app}' ]]; then
+    printf '%s' "web"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'service:web-svc:team-a:{.spec.type}' ]]; then
+    printf '%s' "ClusterIP"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'service:web-svc:team-a:{.spec.ports[0].port}' ]]; then
+    printf '%s' "80"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'service:web-svc:team-a:{.spec.ports[0].targetPort}' ]]; then
+    printf '%s' "8080"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'configmap:app-config:team-a:{range .data}{@..key}{end}' ]]; then
+    printf '%s' "MODE"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'configmap:app-config:team-a:{.data}' ]]; then
+    printf '%s' '{"MODE":"prod"}'
+    return 0
+  fi
+
+  if [[ "$lookup" == 'configmap:app-config:team-a:{.data.MODE}' ]]; then
+    printf '%s' "prod"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'secret:app-secret:team-a:{.type}' ]]; then
+    printf '%s' "Opaque"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'secret:app-secret:team-a:{.data.password}' ]]; then
+    printf '%s' "czNjcjN0"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'pvc:data-pvc:team-a:{.status.phase}' ]]; then
+    printf '%s' "Bound"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'pvc:data-pvc:team-a:{.spec.resources.requests.storage}' ]]; then
+    printf '%s' "1Gi"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'pvc:data-pvc:team-a:{.spec.accessModes[0]}' ]]; then
+    printf '%s' "ReadWriteOnce"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'rolebinding:workload-reader-bind:team-a:{.roleRef.name}' ]]; then
+    printf '%s' "workload-reader"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'rolebinding:workload-reader-bind:team-a:{.subjects[0].name}' ]]; then
+    printf '%s' "build-bot"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'cronjob:nightly:team-a:{.spec.schedule}' ]]; then
+    printf '%s' "*/5 * * * *"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'cronjob:nightly:team-a:{.spec.jobTemplate.spec.template.spec.containers[0].image}' ]]; then
+    printf '%s' "busybox:1.36"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'ingress:web-ing:team-a:{.spec.rules[0].host}' ]]; then
+    printf '%s' "app.example.com"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'ingress:web-ing:team-a:{.spec.rules[0].http.paths[0].path}' ]]; then
+    printf '%s' "/api"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'ingress:web-ing:team-a:{.spec.rules[0].http.paths[0].backend.service.name}' ]]; then
+    printf '%s' "web-svc"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'networkpolicy:allow-web:team-a:{.spec.podSelector.matchLabels}' ]]; then
+    printf '%s' '{"app":"web"}'
+    return 0
+  fi
+
+  if [[ "$lookup" == 'statefulset:db-sts:team-a:{.spec.replicas}' ]]; then
+    printf '%s' "2"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'statefulset:db-sts:team-a:{.spec.template.spec.containers[0].image}' ]]; then
+    printf '%s' "postgres:16"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'daemonset:log-agent:team-a:{.spec.template.spec.containers[0].image}' ]]; then
+    printf '%s' "fluentbit:2"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'endpoints:web-svc:team-a:{.subsets[0].addresses[0].ip}' ]]; then
+    printf '%s' "10.0.0.42"
+    return 0
+  fi
+
+  return 1
+}
+
+if [[ "${1:-}" == "config" ]]; then
+  case "${2:-}" in
+    current-context)
+      printf '%s\n' "team-a-context"
+      exit 0
+      ;;
+    use-context)
+      [[ "${3:-}" == "team-a-context" ]] && exit 0
+      exit 1
+      ;;
+  esac
+fi
+
+if [[ "${1:-}" == "auth" && "${2:-}" == "can-i" ]]; then
+  if [[ "${3:-}" == "get" && "${4:-}" == "pods" ]]; then
+    printf '%s\n' "yes"
+  else
+    printf '%s\n' "no"
+  fi
+  exit 0
+fi
+
+if [[ "${1:-}" != "get" ]]; then
+  echo "fake kubectl: unsupported command: $*" >&2
+  exit 1
+fi
+
+shift
+kind=$(canonical_kind "${1:-}")
+shift || true
+
+name=""
+if [[ $# -gt 0 && "${1:-}" != -* ]]; then
+  name=$1
+  shift
+fi
+
+ns=""
+selector=""
+jsonpath=""
+no_headers=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -n|--namespace)
+      ns="${2:-}"
+      shift 2
+      ;;
+    -o)
+      jsonpath="${2:-}"
+      jsonpath="${jsonpath#jsonpath=}"
+      shift 2
+      ;;
+    -l)
+      selector="${2:-}"
+      shift 2
+      ;;
+    --no-headers)
+      no_headers=1
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+if [[ $no_headers -eq 1 || -z "$jsonpath" ]]; then
+  resource_exists "$kind" "$name" "$ns" && exit 0
+  exit 1
+fi
+
+if json_value "$kind" "$name" "$ns" "$selector" "$jsonpath"; then
+  exit 0
+fi
+
+echo "fake kubectl: unsupported get query: kind=$kind name=$name ns=$ns selector=$selector jsonpath=$jsonpath" >&2
+exit 1

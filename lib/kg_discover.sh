@@ -104,7 +104,7 @@ for ns in "${NS_LIST[@]}"; do
     count=0
     while IFS= read -r name; do
       [[ -z "$name" ]] && continue
-      ((count++))
+      ((count += 1))
 
       # Gather extra info per resource type
       extra=""
@@ -217,7 +217,7 @@ for ns in "${NS_LIST[@]}"; do
       printf "      ${GREEN}[%2d]${RESET}  %-36s ${DIM}%s${RESET}\n" \
         "$IDX" "$name" "$extra"
       ITEM_KEYS[$IDX]="$key"
-      ((IDX++))
+      ((IDX += 1))
     done
   done
 done
@@ -389,7 +389,7 @@ for k in "${SELECTED_KEYS[@]}"; do
       fi
       ;;
 
-    role|rolebinding)
+    rolebinding)
       read -r -p "    Expected roleRef name (blank to skip): " v
       EXTRA_VALS["${kind}:${name}:roleref"]="$v"
       ;;
@@ -462,15 +462,38 @@ for k in "${SELECTED_KEYS[@]}"; do
       [[ -n "$lk" ]] && echo "check_label pod \"${name}\" \"\$NAMESPACE\" \"${lk}\" \"${lv}\""
       ;;
 
-    deployment|statefulset)
-      echo "check_${kind/statefulset/deploy}_image \"${name}\" \"\$NAMESPACE\" \"${EXTRA_VALS[${kind}:${name}:image]:-}\""
+    deployment)
+      echo "check_deploy_image \"${name}\" \"\$NAMESPACE\" \"${EXTRA_VALS[${kind}:${name}:image]:-}\""
       rep="${EXTRA_VALS[${kind}:${name}:replicas]:-}"
       [[ -n "$rep" ]] && echo "check_replicas \"${name}\" \"\$NAMESPACE\" ${rep}"
       lk="${EXTRA_VALS[${kind}:${name}:label_key]:-}"
       lv="${EXTRA_VALS[${kind}:${name}:label_val]:-}"
       [[ -n "$lk" ]] && {
-        echo "check_label ${kind} \"${name}\" \"\$NAMESPACE\" \"${lk}\" \"${lv}\""
-        echo "check_selector_label ${kind} \"${name}\" \"\$NAMESPACE\" \"${lk}\" \"${lv}\""
+        echo "check_label deployment \"${name}\" \"\$NAMESPACE\" \"${lk}\" \"${lv}\""
+        echo "check_selector_label deployment \"${name}\" \"\$NAMESPACE\" \"${lk}\" \"${lv}\""
+      }
+      ;;
+
+    statefulset)
+      echo "check_jsonpath statefulset \"${name}\" \"\$NAMESPACE\" '{.spec.template.spec.containers[0].image}' \"${EXTRA_VALS[${kind}:${name}:image]:-}\" \"StatefulSet '${name}' image\""
+      rep="${EXTRA_VALS[${kind}:${name}:replicas]:-}"
+      [[ -n "$rep" ]] && echo "check_jsonpath statefulset \"${name}\" \"\$NAMESPACE\" '{.spec.replicas}' \"${rep}\" \"StatefulSet '${name}' replicas\""
+      lk="${EXTRA_VALS[${kind}:${name}:label_key]:-}"
+      lv="${EXTRA_VALS[${kind}:${name}:label_val]:-}"
+      [[ -n "$lk" ]] && {
+        echo "check_label statefulset \"${name}\" \"\$NAMESPACE\" \"${lk}\" \"${lv}\""
+        echo "check_selector_label statefulset \"${name}\" \"\$NAMESPACE\" \"${lk}\" \"${lv}\""
+      }
+      ;;
+
+    daemonset)
+      img="${EXTRA_VALS[${kind}:${name}:image]:-}"
+      [[ -n "$img" ]] && echo "check_jsonpath daemonset \"${name}\" \"\$NAMESPACE\" '{.spec.template.spec.containers[0].image}' \"${img}\" \"DaemonSet '${name}' image\""
+      lk="${EXTRA_VALS[${kind}:${name}:label_key]:-}"
+      lv="${EXTRA_VALS[${kind}:${name}:label_val]:-}"
+      [[ -n "$lk" ]] && {
+        echo "check_label daemonset \"${name}\" \"\$NAMESPACE\" \"${lk}\" \"${lv}\""
+        echo "check_selector_label daemonset \"${name}\" \"\$NAMESPACE\" \"${lk}\" \"${lv}\""
       }
       ;;
 
