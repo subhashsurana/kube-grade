@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # TODO: implement this scenario grader
 LIB="$HOME/kube-grade/lib/grade-lib.sh"
+# shellcheck source=/dev/null
 source "${LIB}" 2>/dev/null || \
+  # shellcheck source=/dev/null
   source <(curl -sL https://raw.githubusercontent.com/kube-grade/kube-grade/main/lib/grade-lib.sh)
 _warn "This scenario grader is not yet implemented. Contributions welcome!"
 grade_summary

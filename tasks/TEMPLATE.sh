@@ -13,8 +13,10 @@
 # ── Load library ──────────────────────────────────────────────────────────────
 LIB="$HOME/kube-grade/lib/grade-lib.sh"
 if [[ -f "$LIB" ]]; then
+  # shellcheck source=/dev/null
   source "$LIB"
 else
+  # shellcheck source=/dev/null
   source <(curl -sL https://raw.githubusercontent.com/kube-grade/kube-grade/main/lib/grade-lib.sh)
 fi
 
