@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get install -y shellcheck
+      - name: Lint all shell files
+        run: |
+          find . -name "*.sh" | while read -r f; do
+            echo "→ $f"
+            shellcheck -S warning "$f"
+          done
+
+  smoke-test:
+    name: Library smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Source without errors
+        run: bash -c 'source lib/grade-lib.sh && echo "OK"'
+
+      - name: All check_ functions declared
+        run: |
+          source lib/grade-lib.sh
+          fns=(check_exists check_namespace check_pod_ready check_status
+               check_image check_deploy_image check_label check_selector_label
+               check_replicas check_env check_env_from_configmap check_env_from_secret
+               check_volume_mount check_secret_key check_service_type check_service_port
+               check_service_selector check_service_endpoints check_resources check_probe
+               check_pvc check_rbac check_rolebinding_role check_rolebinding_subject
+               check_cronjob check_ingress check_netpol check_file_exists
+               check_file_contains check_file_exact check_jsonpath
+               grade_summary grade_reset)
+          missing=()
+          for fn in "${fns[@]}"; do
+            declare -f "$fn" &>/dev/null || missing+=("$fn")
+          done
+          [[ ${#missing[@]} -eq 0 ]] || { echo "MISSING: ${missing[*]}"; exit 1; }
+          echo "All ${#fns[@]} functions present"
+
+      - name: grade_summary exits non-zero on failures
+        run: |
+          source lib/grade-lib.sh
+          _fail "test"
+          grade_summary && exit 1 || echo "Correct non-zero exit"
+
+      - name: grade_summary exits zero when all pass
+        run: |
+          source lib/grade-lib.sh
+          _pass "test"
+          grade_summary || exit 1
+
+      - name: VERSION file present and semver-shaped
+        run: |
+          [[ -f VERSION ]] || { echo "VERSION missing"; exit 1; }
+          grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' VERSION || { echo "Bad version: $(cat VERSION)"; exit 1; }
+          echo "Version: $(cat VERSION)"
+
+      - name: All MANIFEST files reference existing scenario files
+        run: |
+          fail=0
+          for manifest in ckad/MANIFEST cka/MANIFEST cks/MANIFEST; do
+            exam=$(dirname "$manifest")
+            while IFS= read -r f; do
+              [[ -z "$f" || "$f" == \#* ]] && continue
+              path="$exam/scenarios/$f"
+              [[ -f "$path" ]] || { echo "MISSING: $path (listed in $manifest)"; fail=1; }
+            done < "$manifest"
+          done
+          [[ $fail -eq 0 ]] || exit 1
+          echo "All MANIFEST entries have matching files"

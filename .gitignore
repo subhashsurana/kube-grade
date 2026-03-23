@@ -1,0 +1,8 @@
+# Personal per-task graders — these are yours, not shared
+ckad/tasks/task*-grade.sh
+cka/tasks/task*-grade.sh
+cks/tasks/task*-grade.sh
+tasks/task*-grade.sh
+
+*.swp
+.DS_Store

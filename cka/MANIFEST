@@ -1,0 +1,11 @@
+# CKA scenario graders
+grade-node-status.sh
+grade-etcd-backup.sh
+grade-kubeconfig.sh
+grade-rbac-clusterrole.sh
+grade-network-policy.sh
+grade-upgrade-cluster.sh
+grade-drain-node.sh
+grade-pv.sh
+grade-dns.sh
+grade-troubleshoot-pod.sh

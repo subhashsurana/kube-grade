@@ -1,0 +1,16 @@
+# CKAD scenario graders — one filename per line
+# Add your new scenario file here when contributing
+grade-pod.sh
+grade-deployment.sh
+grade-configmap.sh
+grade-secret.sh
+grade-service.sh
+grade-ingress.sh
+grade-netpol.sh
+grade-rbac.sh
+grade-probes.sh
+grade-resources.sh
+grade-storage.sh
+grade-cronjob.sh
+grade-multicontainer.sh
+grade-output-file.sh

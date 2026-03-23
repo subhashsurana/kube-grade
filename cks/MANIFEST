@@ -1,0 +1,11 @@
+# CKS scenario graders
+grade-pod-security-admission.sh
+grade-network-policy-strict.sh
+grade-rbac-least-privilege.sh
+grade-secret-encryption.sh
+grade-audit-policy.sh
+grade-image-policy.sh
+grade-seccomp.sh
+grade-apparmor.sh
+grade-falco.sh
+grade-trivy-scan.sh
