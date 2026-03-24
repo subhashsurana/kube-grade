@@ -52,9 +52,23 @@ grade_summary() {
 # PRIVATE HELPERS
 # =============================================================================
 _kget() { kubectl get "$1" "$2" ${3:+-n "$3"} -o jsonpath="$4" 2>/dev/null; }
+_kcget() { kubectl get "$1" "$2" -o jsonpath="$3" 2>/dev/null; }
 _keq()  {
   if [[ "$1" == "$2" ]]; then _pass "$3 = '$2'"
   else _fail "$3 = '$1' (expected '$2')"; fi
+}
+_knorm_bool() {
+  case "${1:-}" in
+    1|true|TRUE|True|yes|YES|Yes|y|Y|on|ON)
+      printf '%s' "true"
+      ;;
+    0|false|FALSE|False|no|NO|No|n|N|off|OFF)
+      printf '%s' "false"
+      ;;
+    *)
+      printf '%s' "${1:-}"
+      ;;
+  esac
 }
 
 # =============================================================================
@@ -271,6 +285,69 @@ check_pvc() {
   [[ -n "$sc"     ]] && { _info "kubectl get pvc $name -n $ns -o jsonpath='{.spec.storageClassName}'"; _keq "$(_kget pvc "$name" "$ns" '{.spec.storageClassName}')" "$sc" "PVC '$name' storageClass"; }
 }
 
+check_storageclass() {
+  local name=$1 provisioner=${2:-} default=${3:-} binding_mode=${4:-} reclaim_policy=${5:-}
+  check_exists storageclass "$name"
+  [[ -n "$provisioner" ]] && {
+    _info "kubectl get storageclass $name -o jsonpath='{.provisioner}'"
+    _keq "$(_kcget storageclass "$name" '{.provisioner}')" "$provisioner" "StorageClass '$name' provisioner"
+  }
+  if [[ -n "$default" ]]; then
+    _info "kubectl get storageclass $name -o jsonpath='{.metadata.annotations}'"
+    local annotations actual
+    annotations=$(_kcget storageclass "$name" '{.metadata.annotations}')
+    actual="false"
+    echo "$annotations" | grep -Eq 'is-default-class[^[:alnum:]]*true' && actual="true"
+    _keq "$actual" "$(_knorm_bool "$default")" "StorageClass '$name' default"
+  fi
+  [[ -n "$binding_mode" ]] && {
+    _info "kubectl get storageclass $name -o jsonpath='{.volumeBindingMode}'"
+    _keq "$(_kcget storageclass "$name" '{.volumeBindingMode}')" "$binding_mode" "StorageClass '$name' volumeBindingMode"
+  }
+  [[ -n "$reclaim_policy" ]] && {
+    _info "kubectl get storageclass $name -o jsonpath='{.reclaimPolicy}'"
+    _keq "$(_kcget storageclass "$name" '{.reclaimPolicy}')" "$reclaim_policy" "StorageClass '$name' reclaimPolicy"
+  }
+}
+
+check_pv() {
+  local name=$1 capacity=${2:-} access=${3:-} sc=${4:-} phase=${5:-}
+  check_exists pv "$name"
+  [[ -n "$capacity" ]] && {
+    _info "kubectl get pv $name -o jsonpath='{.spec.capacity.storage}'"
+    _keq "$(_kcget pv "$name" '{.spec.capacity.storage}')" "$capacity" "PV '$name' capacity"
+  }
+  [[ -n "$access" ]] && {
+    _info "kubectl get pv $name -o jsonpath='{.spec.accessModes[0]}'"
+    _keq "$(_kcget pv "$name" '{.spec.accessModes[0]}')" "$access" "PV '$name' accessMode"
+  }
+  [[ -n "$sc" ]] && {
+    _info "kubectl get pv $name -o jsonpath='{.spec.storageClassName}'"
+    _keq "$(_kcget pv "$name" '{.spec.storageClassName}')" "$sc" "PV '$name' storageClass"
+  }
+  [[ -n "$phase" ]] && {
+    _info "kubectl get pv $name -o jsonpath='{.status.phase}'"
+    _keq "$(_kcget pv "$name" '{.status.phase}')" "$phase" "PV '$name' phase"
+  }
+}
+
+check_priorityclass() {
+  local name=$1 value=${2:-} global_default=${3:-} preemption_policy=${4:-}
+  check_exists priorityclass "$name"
+  [[ -n "$value" ]] && {
+    _info "kubectl get priorityclass $name -o jsonpath='{.value}'"
+    _keq "$(_kcget priorityclass "$name" '{.value}')" "$value" "PriorityClass '$name' value"
+  }
+  [[ -n "$global_default" ]] && {
+    _info "kubectl get priorityclass $name -o jsonpath='{.globalDefault}'"
+    _keq "$(_knorm_bool "$(_kcget priorityclass "$name" '{.globalDefault}')")" "$(_knorm_bool "$global_default")" "PriorityClass '$name' globalDefault"
+  }
+  [[ -n "$preemption_policy" ]] && {
+    _info "kubectl get priorityclass $name -o jsonpath='{.preemptionPolicy}'"
+    _keq "$(_kcget priorityclass "$name" '{.preemptionPolicy}')" "$preemption_policy" "PriorityClass '$name' preemptionPolicy"
+  }
+}
+
 # ── RBAC ──────────────────────────────────────────────────────────────────────
 check_rbac() {
   local sa=$1 ns=${2:-default} verb=$3 resource=$4 expected=${5:-yes}
@@ -290,6 +367,50 @@ check_rolebinding_subject() {
   _keq "$(_kget rolebinding "$rb" "$ns" '{.subjects[0].name}')" "$sa" "RoleBinding '$rb' subject"
 }
 
+check_clusterrole_rule() {
+  local name=$1 verb=$2 resource=$3 api_group=${4:-}
+  _info "kubectl get clusterrole $name -o jsonpath='{range .rules[*]}apiGroups={.apiGroups[*]} resources={.resources[*]} verbs={.verbs[*]}{\"\\n\"}{end}'"
+  local rules line
+  rules=$(kubectl get clusterrole "$name" -o jsonpath='{range .rules[*]}apiGroups={.apiGroups[*]} resources={.resources[*]} verbs={.verbs[*]}{"\n"}{end}' 2>/dev/null)
+  while IFS= read -r line; do
+    [[ "$line" != *"resources="*"$resource"* ]] && continue
+    [[ "$line" != *"verbs="*"$verb"* ]] && continue
+    if [[ -n "$api_group" && "$line" != *"apiGroups="*"$api_group"* ]]; then
+      continue
+    fi
+    _pass "ClusterRole '$name' grants $verb on $resource${api_group:+ (apiGroup: $api_group)}"
+    return
+  done <<< "$rules"
+  _fail "ClusterRole '$name' missing $verb on $resource${api_group:+ (apiGroup: $api_group)}"
+}
+
+check_clusterrolebinding_role() {
+  local crb=$1 role=$2
+  _info "kubectl get clusterrolebinding $crb -o jsonpath='{.roleRef.name}'"
+  _keq "$(_kcget clusterrolebinding "$crb" '{.roleRef.name}')" "$role" "ClusterRoleBinding '$crb' roleRef"
+}
+
+check_clusterrolebinding_subject() {
+  local crb=$1 kind=$2 name=$3 ns=${4:-}
+  _info "kubectl get clusterrolebinding $crb -o jsonpath='{.subjects}'"
+  local subjects
+  subjects=$(_kcget clusterrolebinding "$crb" '{.subjects}')
+  if (echo "$subjects" | grep -q "\"kind\":\"$kind\"" || echo "$subjects" | grep -q "kind:$kind") \
+    && (echo "$subjects" | grep -q "\"name\":\"$name\"" || echo "$subjects" | grep -q "name:$name"); then
+    if [[ -n "$ns" ]]; then
+      if (echo "$subjects" | grep -q "\"namespace\":\"$ns\"" || echo "$subjects" | grep -q "namespace:$ns"); then
+        _pass "ClusterRoleBinding '$crb' subjects include $kind/$name${ns:+ (ns: $ns)}"
+      else
+        _fail "ClusterRoleBinding '$crb' missing namespace '$ns' for $kind/$name"
+      fi
+    else
+      _pass "ClusterRoleBinding '$crb' subjects include $kind/$name"
+    fi
+  else
+    _fail "ClusterRoleBinding '$crb' missing subject $kind/$name${ns:+ (ns: $ns)}"
+  fi
+}
+
 # ── CronJob ───────────────────────────────────────────────────────────────────
 check_cronjob() {
   local name=$1 ns=${2:-default} schedule=${3:-} image=${4:-}
@@ -305,6 +426,7 @@ check_ingress() {
   [[ -n "$host" ]] && { _info "kubectl get ingress $name -n $ns -o jsonpath='{.spec.rules[0].host}'"; _keq "$(_kget ingress "$name" "$ns" '{.spec.rules[0].host}')" "$host" "Ingress '$name' host"; }
   [[ -n "$path" ]] && { _info "kubectl get ingress $name -n $ns -o jsonpath='{.spec.rules[0].http.paths[0].path}'"; _keq "$(_kget ingress "$name" "$ns" '{.spec.rules[0].http.paths[0].path}')" "$path" "Ingress '$name' path"; }
   [[ -n "$svc"  ]] && { _info "kubectl get ingress $name -n $ns -o jsonpath='{.spec.rules[0].http.paths[0].backend.service.name}'"; _keq "$(_kget ingress "$name" "$ns" '{.spec.rules[0].http.paths[0].backend.service.name}')" "$svc" "Ingress '$name' backend svc"; }
+  [[ -n "$port" ]] && { _info "kubectl get ingress $name -n $ns -o jsonpath='{.spec.rules[0].http.paths[0].backend.service.port.number}'"; _keq "$(_kget ingress "$name" "$ns" '{.spec.rules[0].http.paths[0].backend.service.port.number}')" "$port" "Ingress '$name' backend port"; }
 }
 
 # ── NetworkPolicy ─────────────────────────────────────────────────────────────

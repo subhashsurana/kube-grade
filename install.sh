@@ -5,7 +5,7 @@
 # =============================================================================
 set -euo pipefail
 
-REPO_RAW="https://raw.githubusercontent.com/subhashsurana/kube-grade/main"
+REPO_RAW="${REPO_RAW:-https://raw.githubusercontent.com/subhashsurana/kube-grade/main}"
 INSTALL_DIR="$HOME/kube-grade"
 BOLD='\033[1m'; CYAN='\033[0;36m'; GREEN='\033[0;32m'; DIM='\033[2m'; RESET='\033[0m'
 
@@ -27,6 +27,7 @@ echo -e "${CYAN}  Installing kube-grade...${RESET}"
 
 # Core
 _dl "lib/grade-lib.sh"
+_dl "lib/grade-recipes.sh"
 _dl "VERSION"
 _dl "tasks/TEMPLATE.sh"
 
@@ -41,6 +42,7 @@ for exam in ckad cka cks; do
 done
 
 chmod +x "$INSTALL_DIR/lib/grade-lib.sh"
+chmod +x "$INSTALL_DIR/lib/grade-recipes.sh"
 find "$INSTALL_DIR" -name "*.sh" -exec chmod +x {} \;
 
 # ── Shell aliases (idempotent) ─────────────────────────────────────────────────
@@ -50,6 +52,7 @@ cat >> ~/.bashrc << 'BLOCK'
 # kube-grade:begin
 export KUBE_GRADE="$HOME/kube-grade"
 source "$KUBE_GRADE/lib/grade-lib.sh" 2>/dev/null || true
+source "$KUBE_GRADE/lib/grade-recipes.sh" 2>/dev/null || true
 
 # context + namespace helpers
 alias kns='kubectl config set-context --current --namespace'
