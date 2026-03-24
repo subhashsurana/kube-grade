@@ -131,6 +131,11 @@ json_value() {
     return 0
   fi
 
+  if [[ "$lookup" == 'pod:app-pod:team-a:{.spec.containers[0].volumeMounts}' ]]; then
+    printf '%s' '{"mountPath":"/data","name":"data-pvc"}'
+    return 0
+  fi
+
   if [[ "$lookup" == 'pod:app-pod:team-a:{.metadata.labels.app}' ]]; then
     printf '%s' "web"
     return 0
@@ -228,6 +233,46 @@ json_value() {
 
   if [[ "$lookup" == 'cronjob:nightly:team-a:{.spec.jobTemplate.spec.template.spec.containers[0].image}' ]]; then
     printf '%s' "busybox:1.36"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'cronjob:nightly:team-a:{.spec.jobTemplate.spec.template.spec.containers[0].command[0]}' ]]; then
+    printf '%s' "/bin/sh"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'cronjob:nightly:team-a:{.spec.jobTemplate.spec.template.spec.containers[0].command[1]}' ]]; then
+    printf '%s' "-c"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'cronjob:nightly:team-a:{.spec.jobTemplate.spec.template.spec.containers[0].command[2]}' ]]; then
+    printf '%s' "echo Processing && sleep 30"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'cronjob:nightly:team-a:{.spec.jobTemplate.spec.activeDeadlineSeconds}' ]]; then
+    printf '%s' "40"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'cronjob:nightly:team-a:{.spec.jobTemplate.spec.backoffLimit}' ]]; then
+    printf '%s' "2"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'cronjob:nightly:team-a:{.spec.jobTemplate.spec.completions}' ]]; then
+    printf '%s' "4"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'cronjob:nightly:team-a:{.spec.jobTemplate.spec.parallelism}' ]]; then
+    printf '%s' "2"
+    return 0
+  fi
+
+  if [[ "$lookup" == 'cronjob:nightly:team-a:{.spec.jobTemplate.spec.ttlSecondsAfterFinished}' ]]; then
+    printf '%s' "120"
     return 0
   fi
 

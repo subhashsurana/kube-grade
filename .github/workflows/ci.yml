@@ -2,9 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   shellcheck:
@@ -12,13 +19,43 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get install -y shellcheck
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
       - name: Lint all shell files
         run: |
-          find . -name "*.sh" | while read -r f; do
+          find . -name "*.sh" -print0 | while IFS= read -r -d '' f; do
             echo "→ $f"
             shellcheck -S warning "$f"
           done
+
+  bash-syntax:
+    name: Bash syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse all shell files
+        run: |
+          find . -name "*.sh" -print0 | while IFS= read -r -d '' f; do
+            echo "→ $f"
+            bash -n "$f"
+          done
+
+  integration-smoke:
+    name: Integration smoke (${{ matrix.script }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        script:
+          - tests/recipes-smoke.sh
+          - tests/kg-discover-smoke.sh
+          - tests/install-smoke.sh
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run ${{ matrix.script }}
+        run: bash "${{ matrix.script }}"
 
   smoke-test:
     name: Library smoke test
@@ -27,7 +64,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Source without errors
-        run: bash -c 'source lib/grade-lib.sh && echo "OK"'
+        run: bash -c 'source lib/grade-lib.sh && source lib/grade-recipes.sh && echo "OK"'
 
       - name: All check_ functions declared
         run: |
@@ -37,7 +74,10 @@ jobs:
                check_replicas check_env check_env_from_configmap check_env_from_secret
                check_volume_mount check_secret_key check_service_type check_service_port
                check_service_selector check_service_endpoints check_resources check_probe
-               check_pvc check_rbac check_rolebinding_role check_rolebinding_subject
+               check_pvc check_storageclass check_pv check_priorityclass
+               check_rbac check_rolebinding_role check_rolebinding_subject
+               check_clusterrole_rule check_clusterrolebinding_role
+               check_clusterrolebinding_subject
                check_cronjob check_ingress check_netpol check_file_exists
                check_file_contains check_file_exact check_jsonpath
                grade_summary grade_reset)
@@ -47,6 +87,22 @@ jobs:
           done
           [[ ${#missing[@]} -eq 0 ]] || { echo "MISSING: ${missing[*]}"; exit 1; }
           echo "All ${#fns[@]} functions present"
+
+      - name: All recipe_ functions declared
+        run: |
+          source lib/grade-lib.sh
+          source lib/grade-recipes.sh
+          fns=(recipe_deployment_service recipe_deployment_service_ingress
+               recipe_configmap_secret_env recipe_pvc_pod
+               recipe_storageclass_pvc recipe_cronjob_advanced
+               recipe_rbac_namespace recipe_rbac_cluster
+               recipe_priorityclass_pod recipe_pv_pvc)
+          missing=()
+          for fn in "${fns[@]}"; do
+            declare -f "$fn" &>/dev/null || missing+=("$fn")
+          done
+          [[ ${#missing[@]} -eq 0 ]] || { echo "MISSING: ${missing[*]}"; exit 1; }
+          echo "All ${#fns[@]} recipes present"
 
       - name: grade_summary exits non-zero on failures
         run: |
@@ -79,6 +135,3 @@ jobs:
           done
           [[ $fail -eq 0 ]] || exit 1
           echo "All MANIFEST entries have matching files"
-
-      - name: kg-discover smoke test
-        run: bash tests/kg-discover-smoke.sh

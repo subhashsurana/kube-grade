@@ -12,5 +12,8 @@ grade-probes.sh
 grade-resources.sh
 grade-storage.sh
 grade-cronjob.sh
+grade-cronjob-advanced.sh
+grade-pvc-pod.sh
+grade-rbac-namespace.sh
 grade-multicontainer.sh
 grade-output-file.sh
